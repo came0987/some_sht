@@ -3,21 +3,21 @@
     {
       "id": "load_1",
       "type": "csv_loader",
-      "params": { "path": "data.csv" }
+      "params": { "path": "data1.csv" }
     },
     {
-      "id": "scale_1",
-      "type": "standard_scaler",
+      "id": "load_2",
+      "type": "csv_loader",
+      "params": { "path": "data2.csv" }
+    },
+    {
+      "id": "concat_1",
+      "type": "concat",
       "params": {}
-    },
-    {
-      "id": "model_1",
-      "type": "kmeans",
-      "params": { "n_clusters": 3 }
     }
   ],
   "edges": [
-    { "from": "load_1", "to": "scale_1" },
-    { "from": "scale_1", "to": "model_1" }
+    { "from": "load_1", "to": "concat_1", "target_handle": "a" },
+    { "from": "load_2", "to": "concat_1", "target_handle": "b" }
   ]
 }
