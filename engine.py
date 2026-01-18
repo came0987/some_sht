@@ -1,30 +1,34 @@
-import json
 import networkx as nx
 from registry import NODE_REGISTRY
+from schema import Pipeline
 
-def load_pipeline(path):
-    with open(path) as f:
-        return json.load(f)
-
-def build_graph(dsl):
+def build_graph(pipeline: Pipeline):
     g = nx.DiGraph()
-    for node in dsl["nodes"]:
-        g.add_node(node["id"], **node)
-    for edge in dsl["edges"]:
-        g.add_edge(edge["from"], edge["to"])
+
+    for node in pipeline.nodes:
+        g.add_node(node.id, **node.dict())
+
+    for edge in pipeline.edges:
+        g.add_edge(edge.from_, edge.to, target_handle=edge.target_handle)
+
     return g
 
-def run_pipeline(dsl):
-    g = build_graph(dsl)
+def run_pipeline(dsl: dict):
+    pipeline = Pipeline(**dsl)
+    g = build_graph(pipeline)
+
     results = {}
 
     for node_id in nx.topological_sort(g):
         node = g.nodes[node_id]
         func = NODE_REGISTRY[node["type"]]
 
-        parents = list(g.predecessors(node_id))
-        inputs = [results[p] for p in parents]
+        inputs = {}
+        for parent, _, data in g.in_edges(node_id, data=True):
+            handle = data.get("target_handle")
+            inputs[handle or parent] = results[parent]
 
-        results[node_id] = func(*inputs, **node["params"])
+        # если нода принимает **kwargs
+        results[node_id] = func(**inputs, **node["params"])
 
     return results
