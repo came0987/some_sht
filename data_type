@@ -1,0 +1,5 @@
+class DataType(str):
+    DATAFRAME = "dataframe"
+    ARRAY = "array"
+    LABELS = "labels"
+    PLOT = "plot"
