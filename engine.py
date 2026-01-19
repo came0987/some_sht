@@ -1,6 +1,7 @@
 import networkx as nx
 from registry import NODE_REGISTRY
 from schema import Pipeline
+from validate import validate_types
 
 def build_graph(pipeline: Pipeline):
     g = nx.DiGraph()
@@ -15,6 +16,8 @@ def build_graph(pipeline: Pipeline):
 
 def run_pipeline(dsl: dict):
     pipeline = Pipeline(**dsl)
+    validate_types(pipeline)
+
     g = build_graph(pipeline)
 
     results = {}
