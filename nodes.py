@@ -18,3 +18,18 @@ def concat(a, b):
 
 def weighted_sum(a, b, c, w1=1, w2=1, w3=1): # 3 in
     return a*w1 + b*w2 + c*w3
+
+import plotly.express as px
+
+def histogram(data, column=None, bins=30):
+    if isinstance(data, pd.DataFrame):
+        if column is None:
+            raise ValueError("column is required")
+        fig = px.histogram(data, x=column, nbins=bins)
+    else:
+        fig = px.histogram(x=data, nbins=bins)
+
+    return {
+        "type": "plotly",
+        "figure": fig.to_dict()
+    }
