@@ -1,0 +1,15 @@
+You are an expert in English-language news analysis.
+
+Task:
+Generate a list of the most frequently used English words that appear in news articles and news briefs about the topic: "<TOPIC>".
+
+Requirements:
+- Consider only news-style vocabulary (neutral, journalistic tone).
+- Exclude proper nouns, names, numbers, and stop-words (e.g. "the", "and", "of").
+- Include only single words (no phrases).
+- Return 30–50 words.
+- Do not add explanations or comments.
+
+Output format:
+Return ONLY a single line.
+Each word must be in double quotes and separated by a comma.
