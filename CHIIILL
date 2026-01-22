@@ -1,0 +1,57 @@
+git clone https://github.com/ggerganov/llama.cpp
+
+cmake -B build \
+  -DGGML_CUDA=ON \
+  -DGGML_CUDA_F16=ON \
+  -DGGML_CUDA_GRAPHS=ON
+
+cmake --build build -j
+
+./build/bin/llama-cli --version
+
+
+
+echo 'export PATH=$HOME/llm/llama.cpp/build/bin:$PATH' >> ~/.bashrc # $HOME == /home/gleb
+source ~/.bashrc
+
+##### теперь можно писать
+llama-server --help
+
+
+#### (команда запуска)
+./build/bin/llama-server \
+  -m /mnt/models/Qwen3-Next-80B-Instruct-Q8_K_XL.gguf \
+  --n-gpu-layers -1 \
+  --tensor-split 1,1 \
+  --ctx-size 8192 \
+  --batch-size 2048 \
+  --ubatch-size 256 \
+  --threads 8 \ # чекнуть ядра - nproc/lscpu/htop
+  --gpu-memory-utilization 0.96 \
+  --host 0.0.0.0 \ # если доступ из сети, либо 127.0.0.1 - localhost
+  --port 8000 \
+  --threads-http 8 # если несколько клиентов
+
+
+
+
+#### Python
+
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="none"
+)
+
+resp = client.chat.completions.create(
+    model="qwen3",
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Explain tensor parallelism in simple terms"}
+    ],
+    temperature=0.7,
+)
+
+print(resp.choices[0].message.content)
+
