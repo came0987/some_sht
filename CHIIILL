@@ -77,3 +77,37 @@ for chunk in stream:
     if chunk.choices[0].delta.content:
         print(chunk.choices[0].delta.content, end="", flush=True)
 
+
+### Пример запуска параллельных запросов
+
+from openai import OpenAI
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="none"
+)
+
+SYSTEM_PROMPT = "You are a concise analytical assistant."
+
+def run_request(text):
+    resp = client.chat.completions.create(
+        model="qwen3",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": text},
+        ],
+        temperature=0.2,
+    )
+    return resp.choices[0].message.content
+
+results = []
+
+# количество параллельных запросов
+MAX_WORKERS = 16
+
+with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    futures = [executor.submit(run_request, t) for t in texts]
+
+    for f in as_completed(futures):
+        results.append(f.result())
