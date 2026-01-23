@@ -111,3 +111,74 @@ with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
 
     for f in as_completed(futures):
         results.append(f.result())
+
+
+
+#### Асинхронный запуск 
+
+import asyncio
+from openai import AsyncOpenAI
+from tqdm.asyncio import tqdm_asyncio
+
+# ========================
+# НАСТРОЙКИ
+# ========================
+BASE_URL = "http://localhost:8000/v1"
+MODEL = "qwen3"
+
+MAX_CONCURRENT_REQUESTS = 16   # rate limit
+MAX_RETRIES = 3
+RETRY_DELAY = 2  # секунды
+
+SYSTEM_PROMPT = "You are a concise analytical assistant."
+
+texts = [f"text {i}" for i in range(1000)]
+
+client = AsyncOpenAI(
+    base_url=BASE_URL,
+    api_key="none",
+)
+
+semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
+
+
+# ========================
+# ОДИН ЗАПРОС
+# ========================
+async def run_request(text: str) -> str:
+    async with semaphore:
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                resp = await client.chat.completions.create(
+                    model=MODEL,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": text},
+                    ],
+                    temperature=0.2,
+                )
+                return resp.choices[0].message.content
+
+            except Exception as e:
+                if attempt == MAX_RETRIES:
+                    return f"[FAILED after {MAX_RETRIES} retries] {e}"
+
+                await asyncio.sleep(RETRY_DELAY * attempt)
+
+
+# ========================
+# ЗАПУСК ВСЕГО
+# ========================
+async def main():
+    tasks = [run_request(t) for t in texts]
+
+    results = []
+    for coro in tqdm_asyncio.as_completed(tasks):
+        result = await coro
+        results.append(result)
+
+    return results
+
+
+if __name__ == "__main__":
+    results = asyncio.run(main())
