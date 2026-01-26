@@ -1,0 +1,67 @@
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="none"
+)
+
+topics = ["inflation", "oil", "AI", "bitcoin"]
+
+results = {}
+
+for topic in topics:
+    prompt = PROMPT_TEMPLATE.format(topic=topic)
+
+    resp = client.chat.completions.create(
+        model="qwen3",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+    )
+
+    results[topic] = resp.choices[0].message.content
+
+
+
+
+
+
+##########   
+
+
+
+
+
+import asyncio
+from openai import AsyncOpenAI
+from tqdm.asyncio import tqdm
+
+client = AsyncOpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="none"
+)
+
+SEM = asyncio.Semaphore(8)  # сколько запросов одновременно
+
+async def ask(topic):
+    async with SEM:
+        prompt = PROMPT_TEMPLATE.format(topic=topic)
+
+        resp = await client.chat.completions.create(
+            model="qwen3",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+        )
+        return topic, resp.choices[0].message.content
+
+async def main(topics):
+    tasks = [ask(t) for t in topics]
+    results = {}
+
+    for coro in tqdm(asyncio.as_completed(tasks), total=len(tasks)):
+        topic, answer = await coro
+        results[topic] = answer
+
+    return results
+
+topics = ["inflation", "oil", "AI", "bitcoin"]
+results = asyncio.run(main(topics))
