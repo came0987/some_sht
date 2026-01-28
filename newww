@@ -1,0 +1,211 @@
+import asyncio
+import json
+from typing import List
+from openai import AsyncOpenAI
+from tqdm import tqdm
+
+# =========================
+# CONFIG
+# =========================
+
+BASE_URL = "http://localhost:8000/v1"
+MODEL = "qwen3"
+TEMPERATURE = 0.3
+MAX_CONCURRENT_REQUESTS = 4
+
+THEMES = [
+    "Economic crisis",
+    "Social crisis"
+]
+
+# =========================
+# LLM CLIENT
+# =========================
+
+client = AsyncOpenAI(
+    base_url=BASE_URL,
+    api_key="none"
+)
+
+semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
+
+
+async def ask_llm(prompt: str) -> str:
+    async with semaphore:
+        response = await client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=TEMPERATURE,
+        )
+        return response.choices[0].message.content.strip()
+
+
+# =========================
+# PROMPTS
+# =========================
+
+def theme_prompt(theme: str) -> str:
+    return f"""
+Generate 20 generalized events describing the theme: "{theme}"
+
+Rules:
+- Output ONLY a comma-separated list
+- No numbering
+- No explanations
+- Each event is 2–6 words
+- English language
+
+Example:
+event one, event two, event three
+""".strip()
+
+
+def predecessor_prompt(event: str) -> str:
+    return f"""
+Generate 10 realistic predecessor events that could lead to:
+"{event}"
+
+Rules:
+- Output ONLY a comma-separated list
+- No explanations
+- Short phrases
+- English language
+""".strip()
+
+
+def keywords_prompt(event: str) -> str:
+    return f"""
+Generate 10–15 English words frequently used to describe:
+"{event}"
+
+Rules:
+- Output ONLY single words
+- Comma-separated
+- No explanations
+""".strip()
+
+
+# =========================
+# PARSING
+# =========================
+
+def parse_list(text: str) -> List[str]:
+    return [
+        item.strip()
+        for item in text.split(",")
+        if item.strip()
+    ]
+
+
+# =========================
+# PIPELINE
+# =========================
+
+async def generate_events(theme: str) -> List[str]:
+    text = await ask_llm(theme_prompt(theme))
+    return parse_list(text)
+
+
+async def generate_predecessors(event: str) -> List[str]:
+    text = await ask_llm(predecessor_prompt(event))
+    return parse_list(text)
+
+
+async def generate_keywords(event: str) -> List[str]:
+    text = await ask_llm(keywords_prompt(event))
+    return parse_list(text)
+
+
+async def process_theme(theme: str) -> dict:
+    theme_block = {"events": []}
+
+    events = await generate_events(theme)
+
+    for event in tqdm(events, desc=f"{theme} → events", leave=False):
+        event_block = {
+            "event": event,
+            "predecessors": []
+        }
+
+        predecessors = await generate_predecessors(event)
+
+        for pred in predecessors:
+            keywords = await generate_keywords(pred)
+
+            event_block["predecessors"].append({
+                "event": pred,
+                "keywords": keywords
+            })
+
+        theme_block["events"].append(event_block)
+
+    return theme_block
+
+
+# =========================
+# MAIN
+# =========================
+
+async def main():
+    result = {}
+
+    for theme in THEMES:
+        print(f"\nProcessing theme: {theme}")
+        result[theme] = await process_theme(theme)
+
+    with open("result.json", "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+
+    print("\nDone. Saved to result.json")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+
+
+######## v2
+
+async def ask_llm(prompt: str, retries: int = 3) -> str:
+    for attempt in range(1, retries + 1):
+        try:
+            async with semaphore:
+                response = await client.chat.completions.create(
+                    model=MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=TEMPERATURE,
+                )
+
+            text = response.choices[0].message.content.strip()
+
+            # простая валидация
+            if "," not in text:
+                raise ValueError("Response is not a comma-separated list")
+
+            return text
+
+        except Exception as e:
+            if attempt == retries:
+                raise RuntimeError(
+                    f"LLM failed after {retries} retries. Last error: {e}"
+                )
+
+            await asyncio.sleep(0.5 * attempt)  # backoff
+
+
+def parse_list(text: str) -> list[str]:
+    items = [
+        item.strip()
+        for item in text.split(",")
+        if item.strip()
+    ]
+
+    if len(items) < 3:
+        raise ValueError("Too few items parsed")
+
+    return items
+
+
+async def generate_keywords(event: str) -> list[str]:
+    text = await ask_llm(keywords_prompt(event))
+    return parse_list(text)
