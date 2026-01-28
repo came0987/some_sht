@@ -209,3 +209,5 @@ def parse_list(text: str) -> list[str]:
 async def generate_keywords(event: str) -> list[str]:
     text = await ask_llm(keywords_prompt(event))
     return parse_list(text)
+
+double-pass для повышения точности?????
